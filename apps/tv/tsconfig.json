@@ -1,0 +1,1 @@
+{"extends":"@react-native/typescript-config","compilerOptions":{"types":["react-native"]},"include":["src/**/*.ts","src/**/*.tsx"]}

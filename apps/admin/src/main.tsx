@@ -1,0 +1,29 @@
+import React, {useEffect, useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import './style.css';
+
+type Device={device_id:string;status:string;trial_started_at:string;subscription_expires_at:string|null};
+type Code={id:string;plan:string;status:string;issued_at:string;redeemed_device_id:string|null};
+type Audit={action:string;target_id:string|null;created_at:string};
+
+function Admin(){
+  const [base,setBase]=useState(localStorage.getItem('api')||'http://127.0.0.1:8000');
+  const [key,setKey]=useState(''); const [tab,setTab]=useState('devices');
+  const [devices,setDevices]=useState<Device[]>([]);const [codes,setCodes]=useState<Code[]>([]);const [audit,setAudit]=useState<Audit[]>([]);
+  const [plan,setPlan]=useState('monthly');const [quantity,setQuantity]=useState(1);const [issued,setIssued]=useState<string[]>([]);const [error,setError]=useState('');
+  async function request(path:string, init:RequestInit={}){const headers=new Headers(init.headers);headers.set('content-type','application/json');headers.set('x-admin-key',key);const r=await fetch(base.replace(/\/$/,'')+path,{...init,headers});if(!r.ok)throw new Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json();}
+  async function load(){try{localStorage.setItem('api',base);const [d,c,a]=await Promise.all([request('/v1/admin/devices'),request('/v1/admin/codes'),request('/v1/admin/audit')]);setDevices(d);setCodes(c);setAudit(a);setError('');}catch(e){setError(String(e));}}
+  useEffect(()=>{if(key)void load();},[key]);
+  async function issue(){if(!window.confirm(`Paiement ${plan==='monthly'?'mensuel':'annuel'} confirmé manuellement ?`))return;try{const r=await request('/v1/admin/codes',{method:'POST',body:JSON.stringify({plan,quantity})});setIssued(r.codes);await load();}catch(e){setError(String(e));}}
+  async function copyIssued(){try{await navigator.clipboard.writeText(issued.join('\n'));setError('Codes copiés. Conservez-les et transmettez-les aux clients concernés.');}catch{setError('Copie automatique indisponible. Sélectionnez les codes affichés pour les copier.');}}
+  async function action(path:string){try{await request(path,{method:'POST'});await load();}catch(e){setError(String(e));}}
+  function exportCsv(){const rows=[['appareil','statut','essai_debut_utc','abonnement_fin_utc'],...devices.map(d=>[d.device_id,d.status,d.trial_started_at,d.subscription_expires_at||''])];const csv=rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download='primeflix-appareils.csv';a.click();URL.revokeObjectURL(a.href);}
+  if(!key)return <main className="login"><h1>PrimeFlix <b>TV</b></h1><p>Console d’administration</p><label>URL de l’API<input value={base} onChange={e=>setBase(e.target.value)}/></label><label>Clé admin<input type="password" value={key} onChange={e=>setKey(e.target.value)}/></label><button onClick={()=>void load()}>Ouvrir la console</button></main>;
+  return <main><header><div><h1>PrimeFlix <b>TV</b></h1><small>GESTION DES ACCÈS</small></div><button className="secondary" onClick={()=>{setKey('');setIssued([])}}>Se déconnecter</button></header>
+    {error&&<p className="error">{error}</p>}<nav>{['devices','codes','audit'].map(x=><button key={x} className={tab===x?'selected':''} onClick={()=>setTab(x)}>{x==='devices'?'Appareils':x==='codes'?'Codes':'Journal'}</button>)}</nav>
+    {tab==='devices'&&<section><h2>Appareils et abonnements</h2><button className="secondary" onClick={exportCsv}>Exporter les appareils en CSV</button><table><thead><tr><th>Identifiant pseudonymisé</th><th>Accès</th><th>Début essai</th><th>Échéance</th><th>Opération</th></tr></thead><tbody>{devices.map(d=><tr key={d.device_id}><td>{d.device_id}</td><td>{d.status}</td><td>{new Date(d.trial_started_at).toLocaleString()}</td><td>{d.subscription_expires_at?new Date(d.subscription_expires_at).toLocaleString():'—'}</td><td><button onClick={()=>void action(`/v1/admin/devices/${d.device_id}/${d.status==='active'?'revoke':'restore'}`)}>{d.status==='active'?'Révoquer':'Restaurer'}</button></td></tr>)}</tbody></table></section>}
+    {tab==='codes'&&<section><h2>Codes d’activation</h2><p>Émettre un code uniquement après confirmation du paiement hors application.</p><div className="row"><select value={plan} onChange={e=>setPlan(e.target.value)}><option value="monthly">Mensuel · 1 mois calendaire</option><option value="yearly">Annuel · 12 mois calendaires</option></select><input type="number" min="1" max="100" value={quantity} onChange={e=>setQuantity(+e.target.value)}/><button onClick={()=>void issue()}>Confirmer le paiement et générer</button></div>{issued.length>0&&<aside><b>Transmettez ces codes au client maintenant. Ils ne pourront pas être récupérés ensuite.</b><pre>{issued.join('\n')}</pre><button className="secondary" onClick={()=>void copyIssued()}>Copier les codes</button><button onClick={()=>setIssued([])}>Effacer de l’écran</button></aside>}<table><thead><tr><th>Formule</th><th>Statut</th><th>Émis le</th><th>Appareil</th><th></th></tr></thead><tbody>{codes.map(c=><tr><td>{c.plan}</td><td>{c.status}</td><td>{new Date(c.issued_at).toLocaleString()}</td><td>{c.redeemed_device_id||'—'}</td><td>{c.status==='issued'&&<button onClick={()=>void action(`/v1/admin/codes/${c.id}/revoke`)}>Révoquer</button>}</td></tr>)}</tbody></table></section>}
+    {tab==='audit'&&<section><h2>Historique administratif</h2><table><thead><tr><th>Date</th><th>Action</th><th>Cible</th></tr></thead><tbody>{audit.map(a=><tr><td>{new Date(a.created_at).toLocaleString()}</td><td>{a.action}</td><td>{a.target_id||'—'}</td></tr>)}</tbody></table></section>}
+  </main>
+}
+createRoot(document.getElementById('root')!).render(<Admin/>);
