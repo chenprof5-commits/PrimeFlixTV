@@ -50,6 +50,15 @@ def secret_env(name: str) -> str:
     return value
 
 
+def normalize_database_url(value: str) -> str:
+    """Use the installed psycopg v3 driver for provider PostgreSQL URLs."""
+    if value.startswith("postgres://"):
+        return "postgresql+psycopg://" + value.removeprefix("postgres://")
+    if value.startswith("postgresql://"):
+        return "postgresql+psycopg://" + value.removeprefix("postgresql://")
+    return value
+
+
 IS_VERCEL = os.environ.get("VERCEL") == "1"
 CONFIGURED_DATABASE_URL = os.environ.get("DATABASE_URL")
 if IS_VERCEL and not CONFIGURED_DATABASE_URL:
@@ -58,7 +67,7 @@ ADMIN_KEY = secret_env("ADMIN_KEY")
 CODE_PEPPER = secret_env("CODE_PEPPER")
 TOKEN_PEPPER = secret_env("TOKEN_PEPPER")
 DEVICE_PEPPER = secret_env("DEVICE_PEPPER")
-DATABASE_URL = CONFIGURED_DATABASE_URL or "sqlite:///./primeflix.db"
+DATABASE_URL = normalize_database_url(CONFIGURED_DATABASE_URL or "sqlite:///./primeflix.db")
 IS_SQLITE = DATABASE_URL.startswith("sqlite")
 if IS_VERCEL and IS_SQLITE:
     raise RuntimeError("Vercel requiert PostgreSQL persistant ; SQLite local n'est pas pris en charge.")

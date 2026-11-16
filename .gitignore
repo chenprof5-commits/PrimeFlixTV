@@ -20,6 +20,7 @@
 **/.kotlin/
 **/dist/
 **/local.properties
+**/.vercel/
 **/captures/
 *.log
 **/__pycache__/

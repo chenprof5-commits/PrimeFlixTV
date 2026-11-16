@@ -98,3 +98,9 @@ def test_calendar_month_addition_clamps_end_of_month():
     leap_day = datetime(2024, 1, 31, 12, 0, tzinfo=timezone.utc)
     assert add_calendar_months(leap_day, 1) == datetime(2024, 2, 29, 12, 0, tzinfo=timezone.utc)
     assert add_calendar_months(leap_day, 12) == datetime(2025, 1, 31, 12, 0, tzinfo=timezone.utc)
+
+
+def test_postgres_urls_use_psycopg_driver():
+    assert licensing.normalize_database_url('postgres://user:pass@host/db') == 'postgresql+psycopg://user:pass@host/db'
+    assert licensing.normalize_database_url('postgresql://user:pass@host/db') == 'postgresql+psycopg://user:pass@host/db'
+    assert licensing.normalize_database_url('sqlite:///./primeflix.db') == 'sqlite:///./primeflix.db'

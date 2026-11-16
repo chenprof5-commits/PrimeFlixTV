@@ -19,9 +19,13 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Could not configure origin.' }
     }
 
-    # Retire du suivi le journal Kotlin généré pendant les compilations locales.
-    git rm -r --cached --ignore-unmatch -- apps/tv/android/.kotlin
-    if ($LASTEXITCODE -ne 0) { throw 'Could not exclude the generated Kotlin log.' }
+    # Retire du suivi le journal Kotlin généré pendant les compilations locales,
+    # s'il est encore suivi dans cet historique.
+    $trackedKotlin = @(git ls-files -- apps/tv/android/.kotlin)
+    if ($trackedKotlin.Count -gt 0) {
+        git rm -r --cached -- apps/tv/android/.kotlin
+        if ($LASTEXITCODE -ne 0) { throw 'Could not exclude the generated Kotlin log.' }
+    }
 
     git add --all
     if ($LASTEXITCODE -ne 0) { throw 'git add failed.' }
@@ -29,7 +33,7 @@ try {
     $stagedFiles = @(git diff --cached --name-only)
     $forbidden = @($stagedFiles | Where-Object {
         $_ -match '(^|/)\.env($|\.)' -and $_ -notmatch '(^|/)\.env\.example$' -or
-        $_ -match '(^|/)(node_modules|dist|build|\.gradle|\.cxx|\.kotlin|__pycache__|\.pytest_cache)(/|$)' -or
+        $_ -match '(^|/)(node_modules|dist|build|\.gradle|\.cxx|\.kotlin|\.vercel|__pycache__|\.pytest_cache)(/|$)' -or
         $_ -match '(^|/)local\.properties$|(^|/)debug\.keystore$|\.(apk|aab|db|jks|keystore|pem|p12|key|log)$' -or
         $_ -eq 'NetMirrorTV.apk'
     })
@@ -47,7 +51,7 @@ try {
     }
 
     git status --short
-    git commit -m 'Initial PrimeFlix TV source'
+    git commit -m 'Update PrimeFlix TV source'
     if ($LASTEXITCODE -ne 0) { throw 'git commit failed. Check git user.name and user.email.' }
 
     git push -u origin main
